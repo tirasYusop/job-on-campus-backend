@@ -78,10 +78,24 @@ CORS_ALLOWED_ORIGINS = [
     "https://your-frontend.vercel.app",  # React dev server
 ]
 
-SESSION_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SAMESITE = "Lax"
+# CORS
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://your-frontend.vercel.app",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+
+# SESSION / CSRF (FOR CROSS DOMAIN FRONTEND + RENDER BACKEND)
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
