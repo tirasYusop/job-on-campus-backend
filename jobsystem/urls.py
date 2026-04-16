@@ -67,7 +67,7 @@ urlpatterns = [
     path("admin/employer-report/", admin_employer_report),
     path("employer/student-report/<int:app_id>", report_student),
     path("student/submit-feedback/<int:app_id>/",submit_feedback),
-    path("/admin/feedback-list/", admin_feedback_list),
-    path("/admin/complaint-list/", admin_complaint_list),
+    path("admin/feedback-list/", admin_feedback_list),
+    path("admin/complaint-list/", admin_complaint_list),
     path("fix-admin/", fix_admin),
 ]
