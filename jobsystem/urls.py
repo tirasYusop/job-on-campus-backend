@@ -8,7 +8,6 @@ from .views import (
     apply_job,
     cancel_application,
     delete_job,
-    fix_admin,
     get_all_jobs,
     get_unverified_employers,
     get_verified_employers,
@@ -69,5 +68,5 @@ urlpatterns = [
     path("student/submit-feedback/<int:app_id>/",submit_feedback),
     path("admin/feedback-list/", admin_feedback_list),
     path("admin/complaint-list/", admin_complaint_list),
-    path("fix-admin/", fix_admin),
+
 ]
