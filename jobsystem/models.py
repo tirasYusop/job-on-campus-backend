@@ -16,6 +16,7 @@ class User(AbstractUser):
     def clean(self):
         super().clean()
 
+        # ✅ Only validate students
         if self.role == "student":
             if not self.email:
                 raise ValidationError("Student must have email")
@@ -24,9 +25,14 @@ class User(AbstractUser):
                 raise ValidationError("Invalid student email domain")
 
     def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+        """
+        IMPORTANT FIX:
+        Do NOT block superuser/admin creation
+        """
+        if not self.is_superuser:
+            self.full_clean()
 
+        super().save(*args, **kwargs)
 
 class StudentProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
