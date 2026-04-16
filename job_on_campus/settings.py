@@ -10,8 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-import os
+import os 
 from pathlib import Path
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,10 +27,14 @@ SECRET_KEY = 'django-insecure-(bax%7ftn5jv72=%&w)qq6@n888+7_qaiq5b2oif0w7c@9$w*+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.onrender.com']
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "job-on-campus-backend.onrender.com"]
 AUTH_USER_MODEL = 'jobsystem.User'
 CSRF_COOKIE_HTTPONLY = False
 
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # Application definition
 
@@ -65,7 +70,8 @@ ROOT_URLCONF = 'job_on_campus.urls'
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React dev server
+    "http://localhost:3000",
+    "https://your-frontend.vercel.app",  # React dev server
 ]
 
 SESSION_COOKIE_SAMESITE = "Lax"
@@ -103,10 +109,9 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get("DATABASE_URL")
+    )
 }
 
 
