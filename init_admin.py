@@ -1,5 +1,3 @@
-
-
 import os
 import django
 
@@ -13,10 +11,12 @@ def create_admin():
 
     username = "admin"
     password = "admin123"
+    email = "admin@gmail.com"   # 👈 IMPORTANT FIX
 
     if not User.objects.filter(username=username).exists():
         User.objects.create_superuser(
             username=username,
+            email=email,
             password=password
         )
         print("Admin created")
