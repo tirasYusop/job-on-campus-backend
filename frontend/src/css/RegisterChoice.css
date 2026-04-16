@@ -1,0 +1,74 @@
+/* PAGE BACKGROUND */
+.choice-page {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f5f7fb;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.choice-card {
+  background: white;
+  padding: 35px;
+  border-radius: 18px;
+  width: 360px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  transform: translateY(20px);
+  opacity: 0;
+  animation: fadeUp 0.5s ease forwards;
+}
+@keyframes fadeUp {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.choice-title {
+  font-size: 22px;
+  margin-bottom: 5px;
+}
+
+
+.choice-sub {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 25px;
+}
+
+
+.choice-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choice-btn {
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+  color: white;
+}
+
+.choice-btn.student {
+  background: #667eea;
+}
+
+.choice-btn.student:hover {
+  background: #5a67d8;
+  transform: scale(1.03);
+}
+
+.choice-btn.employer {
+  background: #38b2ac;
+}
+
+.choice-btn.employer:hover {
+  background: #2c7a7b;
+  transform: scale(1.03);
+}

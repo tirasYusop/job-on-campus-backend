@@ -1,0 +1,80 @@
+
+.stu-page {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f5f7fb;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.stu-card {
+  background: white;
+  padding: 32px;
+  border-radius: 18px;
+  width: 380px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  text-align: center;
+  transform: translateY(20px);
+  opacity: 0;
+  animation: fadeUp 0.5s ease forwards;
+}
+
+@keyframes fadeUp {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.stu-title {
+  font-size: 22px;
+  margin-bottom: 5px;
+}
+
+.stu-sub {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.stu-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stu-input {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.stu-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 6px rgba(102, 126, 234, 0.3);
+}
+
+.stu-btn {
+  margin-top: 15px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: #667eea;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.stu-btn:hover {
+  background: #5a67d8;
+  transform: scale(1.02);
+}
+
+.stu-input:focus {
+  transform: scale(1.01);
+}

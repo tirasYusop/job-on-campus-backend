@@ -1,0 +1,198 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* =========================
+   MAIN PAGE WRAPPER
+========================= */
+.admin-page {
+  width: 100%;
+  min-height: 100vh;
+  background: #f4f6f8;
+}
+
+/* =========================
+   NAVBAR
+========================= */
+.admin-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  width: 100%;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 16px 24px;
+  background: #2c3e50;
+  color: white;
+  z-index: 9999;
+  margin: 0;              /* IMPORTANT */
+}
+/* =========================
+   CONTENT WRAPPER
+========================= */
+.admin-content {
+  width: 100%;
+  padding: 24px;
+}
+
+/* =========================
+   KPI GRID
+========================= */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* KPI CARD */
+.kpi-card {
+  background: white;
+  padding: 18px;
+  border-radius: 12px;
+
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.kpi-card h3 {
+  font-size: 22px;
+  color: #2c3e50;
+}
+
+.kpi-card.danger {
+  border: 2px solid #e74c3c;
+}
+
+/* =========================
+   QUICK ACTIONS
+========================= */
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.action-card {
+  flex: 1;
+  background: white;
+
+  padding: 14px;
+  border-radius: 12px;
+
+  cursor: pointer;
+  text-align: center;
+
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  transition: 0.2s;
+}
+
+.action-card:hover {
+  transform: translateY(-3px);
+}
+
+/* =========================
+   SECTION TITLE
+========================= */
+.section-title {
+  margin: 20px 0 10px;
+  font-size: 18px;
+  color: #2c3e50;
+}
+
+/* =========================
+   EMPLOYER GRID
+========================= */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* EMPLOYER CARD */
+.emp-card {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* EMPTY TEXT */
+.empty {
+  color: #888;
+  font-size: 14px;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+.verify-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #27ae60;
+  color: white;
+
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.verify-btn:hover {
+  background: #219150;
+}
+
+.logout-btn {
+  background: #e74c3c;
+  color: white;
+
+  border: none;
+  padding: 8px 14px;
+
+  border-radius: 8px;
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.logout-btn:hover {
+  background: #c0392b;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quick-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 500px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

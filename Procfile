@@ -1,0 +1,1 @@
+web: gunicorn job_on_campus.wsgi
