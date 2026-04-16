@@ -25,13 +25,6 @@ class User(AbstractUser):
                 raise ValidationError("Invalid student email domain")
 
     def save(self, *args, **kwargs):
-        """
-        IMPORTANT FIX:
-        Do NOT block superuser/admin creation
-        """
-        if not self.is_superuser:
-            self.full_clean()
-
         super().save(*args, **kwargs)
 
 class StudentProfile(models.Model):
