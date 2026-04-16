@@ -11,7 +11,20 @@ from datetime import timedelta
 from django.db.models.functions import Coalesce
 
 
+from django.http import JsonResponse
+from django.contrib.auth import get_user_model
 
+def fix_admin(request):
+    User = get_user_model()
+
+    try:
+        u = User.objects.get(username="atira")  # change if needed
+        u.is_staff = True
+        u.is_superuser = True
+        u.save()
+        return JsonResponse({"status": "admin fixed"})
+    except User.DoesNotExist:
+        return JsonResponse({"error": "user not found"})
 
 # STUDENT REGISTER
 @csrf_exempt
