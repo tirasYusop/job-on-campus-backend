@@ -71,25 +71,21 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'job_on_campus.urls'
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "https://job-on-campus-frontend-1.vercel.app", 
-]
-
-# CORS
 CORS_ALLOW_ALL_ORIGINS = False
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "https://your-frontend.vercel.app",
+    "https://job-on-campus-frontend-1.vercel.app",
+]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "authorization",
+]
+# ======================
+CSRF_TRUSTED_ORIGINS = [
+    "https://job-on-campus-frontend-1.vercel.app",
 ]
 
-CORS_ALLOW_CREDENTIALS = True
-
-
-# SESSION / CSRF (FOR CROSS DOMAIN FRONTEND + RENDER BACKEND)
 SESSION_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SAMESITE = "None"
 
