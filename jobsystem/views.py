@@ -14,18 +14,6 @@ from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
 
-def fix_admin(request):
-    User = get_user_model()
-
-    try:
-        u = User.objects.get(username="atira")  # change if needed
-        u.is_staff = True
-        u.is_superuser = True
-        u.save()
-        return JsonResponse({"status": "admin fixed"})
-    except User.DoesNotExist:
-        return JsonResponse({"error": "user not found"})
-
 # STUDENT REGISTER
 @csrf_exempt
 def student_register(request):
@@ -172,33 +160,35 @@ def login_view(request):
     try:
         data = json.loads(request.body)
 
-        login_id = data.get("login_id")   # username / studentID / email
+        login_id = data.get("login_id")
         password = data.get("password")
 
         if not login_id or not password:
-            return JsonResponse({
-                "error": "Student ID / Username / Email and password required"
-            }, status=400)
+            return JsonResponse(
+                {"error": "Username / Email and password required"},
+                status=400
+            )
 
-        # try username first
-        user_obj = User.objects.filter(username=login_id).first()
-
-        # then email
-        if not user_obj:
-            user_obj = User.objects.filter(email=login_id).first()
+        # 🔥 Find user (username OR email)
+        user_obj = User.objects.filter(
+            username=login_id
+        ).first() or User.objects.filter(
+            email=login_id
+        ).first()
 
         if not user_obj:
             return JsonResponse({"error": "Invalid credentials"}, status=400)
 
+        # 🔥 Authenticate properly
         user = authenticate(username=user_obj.username, password=password)
 
-        if user is None:
+        if not user:
             return JsonResponse({"error": "Invalid credentials"}, status=400)
 
         login(request, user)
-        role = user.role
-        if user.is_superuser:
-            role = "admin"
+
+        # 🔥 FORCE admin rule
+        role = "admin" if user.is_superuser else user.role
 
         return JsonResponse({
             "message": "Login successful",
@@ -206,14 +196,12 @@ def login_view(request):
             "username": user.username,
             "email": user.email,
             "role": role,
-            "verified": getattr(user, "verified", True),
+            "verified": user.verified,
             "is_superuser": user.is_superuser
         })
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)   
-    
-    
+        return JsonResponse({"error": str(e)}, status=500)
 @csrf_exempt
 def get_all_users(request):
     if request.method != "GET":
