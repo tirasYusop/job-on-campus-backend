@@ -448,6 +448,7 @@ def get_all_jobs(request):
     for job in jobs:
         data.append({
             "id": job.id,
+            "employer_id": job.employer.user.id,
             "job_type": job.job_type,
             "business_type": job.business_type,
             "phone": job.phone,
