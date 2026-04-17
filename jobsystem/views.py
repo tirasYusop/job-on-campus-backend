@@ -36,22 +36,15 @@ def student_register(request):
 
         username = data["username"]
         email = data["email"]
-
-        # ✅ email domain check
         if not email.endswith("@iluv.ums.edu.my"):
             return JsonResponse({
                 "error": "Email must be a valid UMS student email (@iluv.ums.edu.my)"
             }, status=400)
-
-        # ❌ duplicate username check
         if User.objects.filter(username=username).exists():
             return JsonResponse({"error": "Student ID already exists"}, status=400)
 
-        # ❌ duplicate email check
         if User.objects.filter(email=email).exists():
             return JsonResponse({"error": "Email already registered"}, status=400)
-
-        # ✅ create user
         user = User.objects.create_user(
             username=username,
             password=data["password"],
