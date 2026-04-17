@@ -479,17 +479,28 @@ def apply_job(request, job_id):
         job = Job.objects.get(id=job_id)
         student = StudentProfile.objects.get(user=request.user)
         #noduplicate applications
-        application, created = JobApplication.objects.get_or_create(
+        application = JobApplication.objects.filter(
             job=job,
             student=student
-        )
+        ).first()
 
-        if not created:
-            return JsonResponse({
-                "message": "Already applied",
-                "job_id": job.id,
-                "application_id": application.id
-            }, status=400)
+        # If no application exists at all → create new
+        if not application:
+            application = JobApplication.objects.create(
+                job=job,
+                student=student,
+                status="pending"
+            )
+        else:
+            # If previously cancelled → allow re-apply
+            if application.status == "cancelled":
+                application.status = "pending"
+                application.save()
+            else:
+                return JsonResponse({
+                    "message": "Already applied",
+                    "status": application.status
+                }, status=400)
 
         return JsonResponse({
             "message": "Applied successfully",
