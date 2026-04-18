@@ -8,7 +8,9 @@ from django.contrib.auth import login, logout
 from django.db.models import Count,F, Value
 from django.utils.timezone import now
 from datetime import timedelta
+from django.utils import timezone
 from django.db.models.functions import Coalesce
+from django.db.models import Count, Q
 
 
 from django.http import JsonResponse
@@ -216,6 +218,7 @@ def get_students(request):
             "id": s.user.id,
             "username": s.user.username,
             "nama_penuh": s.nama_penuh,
+            "email": s.user.email,
             "no_matrik": s.no_matrik,
             "no_telefon": s.no_telefon,
             "fakulti": s.fakulti,
@@ -228,7 +231,11 @@ def get_students(request):
 def get_employers(request):
     if request.method != "GET":
         return JsonResponse({"error": "GET only"}, status=405)
-    employers = EmployerProfile.objects.select_related("user")
+
+    employers = EmployerProfile.objects.select_related("user").annotate(
+        total_jobs=Count("jobs") 
+    )
+
     data = []
     for e in employers:
         data.append({
@@ -237,8 +244,11 @@ def get_employers(request):
             "full_name": e.full_name,
             "company_name": e.company_name,
             "phone_number": e.phone_number,
-            "verified": e.user.verified
+            "verified": e.user.verified,
+            "email": e.user.email,
+            "total_jobs": e.total_jobs  
         })
+
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
@@ -368,12 +378,11 @@ def employer_jobs(request):
                 "applications": [
                     {
                         "id": app.id,
-
-                        # ✅ FULL STUDENT OBJECT (MATCH FRONTEND)
                         "student": {
                             "id": app.student.user.id,
                             "username": app.student.user.username,
                             "nama_penuh": app.student.nama_penuh,
+                            "email": app.student.user.email, 
                             "no_matrik": app.student.no_matrik,
                             "no_telefon": app.student.no_telefon,
                             "fakulti": app.student.fakulti,
@@ -478,14 +487,20 @@ def apply_job(request, job_id):
 
     try:
         job = Job.objects.get(id=job_id)
+
+        # 🔥 NEW: BLOCK EXPIRED JOB
+        if job.end_date < timezone.now().date():
+            return JsonResponse({
+                "error": "This job has expired and cannot be applied"
+            }, status=400)
+
         student = StudentProfile.objects.get(user=request.user)
-        #noduplicate applications
+
         application = JobApplication.objects.filter(
             job=job,
             student=student
         ).first()
 
-        # If no application exists at all → create new
         if not application:
             application = JobApplication.objects.create(
                 job=job,
@@ -493,7 +508,6 @@ def apply_job(request, job_id):
                 status="pending"
             )
         else:
-            # If previously cancelled → allow re-apply
             if application.status == "cancelled":
                 application.status = "pending"
                 application.save()
@@ -512,10 +526,6 @@ def apply_job(request, job_id):
 
     except Job.DoesNotExist:
         return JsonResponse({"error": "Job not found"}, status=404)
-
-    except StudentProfile.DoesNotExist:
-        return JsonResponse({"error": "Student profile not found"}, status=404)   
-
 
 @csrf_exempt
 def employer_applications(request):
@@ -677,13 +687,44 @@ def update_job(request, job_id):
 
         data = json.loads(request.body)
 
-        # update fields (only if provided)
+        today = timezone.now().date()
+
+        # 👉 Get new dates (or fallback to existing)
+        start_date = data.get("start_date", job.start_date)
+        end_date = data.get("end_date", job.end_date)
+
+        # 🔥 CONVERT string → date (IMPORTANT)
+        from datetime import datetime
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+        # =========================
+        # 🚫 VALIDATION RULES
+        # =========================
+
+        # ❌ Cannot set start date in the past
+        if start_date < today:
+            return JsonResponse({
+                "error": "Start date cannot be in the past"
+            }, status=400)
+
+        # ❌ End date cannot be before start date
+        if end_date < start_date:
+            return JsonResponse({
+                "error": "End date must be after start date"
+            }, status=400)
+
+        # =========================
+        # ✅ UPDATE FIELDS
+        # =========================
         job.job_type = data.get("job_type", job.job_type)
         job.business_type = data.get("business_type", job.business_type)
         job.phone = data.get("phone", job.phone)
         job.location = data.get("location", job.location)
-        job.start_date = data.get("start_date", job.start_date)
-        job.end_date = data.get("end_date", job.end_date)
+        job.start_date = start_date
+        job.end_date = end_date
         job.work_time = data.get("work_time", job.work_time)
         job.salary_estimate = data.get("salary_estimate", job.salary_estimate)
         job.num_workers = int(data.get("num_workers", job.num_workers))
@@ -698,7 +739,7 @@ def update_job(request, job_id):
 
     except Job.DoesNotExist:
         return JsonResponse({"error": "Job not found"}, status=404)
-    
+      
 @csrf_exempt
 def delete_job(request, job_id):
     if request.method != "DELETE":
@@ -775,7 +816,6 @@ def admin_full_report(request):
         from django.utils import timezone
 
         one_week_ago = timezone.now() - timedelta(days=7)
-
         weekly_accepted = (
             JobApplication.objects
             .filter(status="confirmed", applied_at__gte=one_week_ago)
@@ -783,8 +823,15 @@ def admin_full_report(request):
             .values("date")
             .annotate(total_accepted=Count("id"))
             .order_by("date")
-        )   
-
+        )
+        weekly_rejected = (
+            JobApplication.objects
+            .filter(status="rejected", applied_at__gte=one_week_ago)
+            .extra(select={"date": "DATE(applied_at)"})
+            .values("date")
+            .annotate(total_rejected=Count("id"))
+            .order_by("date")
+        )
         weekly_cancelled = (
             JobApplication.objects
             .filter(status="cancelled", applied_at__gte=one_week_ago)
@@ -793,18 +840,16 @@ def admin_full_report(request):
             .annotate(total_cancelled=Count("id"))
             .order_by("date")
         )
-        faculty_data = (
-            StudentProfile.objects
-            .values("fakulti")
-            .annotate(total=Count("id"))
+        weekly_pending = (
+            JobApplication.objects
+            .filter(status="pending", applied_at__gte=one_week_ago)
+            .extra(select={"date": "DATE(applied_at)"})
+            .values("date")
+            .annotate(total_pending=Count("id"))
+            .order_by("date")
         )
-
-        college_data = (
-            StudentProfile.objects
-            .values("kolej")
-            .annotate(total=Count("id"))
-        )
-
+        faculty_data = StudentProfile.objects.values("fakulti").annotate(total=Count("id"))
+        college_data = StudentProfile.objects.values("kolej").annotate(total=Count("id"))
         total_feedback = JobApplication.objects.exclude(
             feedback__isnull=True
         ).exclude(feedback="").count()
@@ -812,15 +857,23 @@ def admin_full_report(request):
         total_complaints = JobApplication.objects.exclude(
             complaint__isnull=True
         ).exclude(complaint="").count()
-
         total_apps = JobApplication.objects.count()
-        cancelled_apps = JobApplication.objects.filter(status="cancelled").count()
 
+        pending_apps = JobApplication.objects.filter(status="pending").count()
+        accepted_apps = JobApplication.objects.filter(status="confirmed").count()
+        rejected_apps = JobApplication.objects.filter(status="rejected").count()
+        cancelled_apps = JobApplication.objects.filter(status="cancelled").count()
         cancel_rate = round((cancelled_apps / total_apps) * 100, 2) if total_apps else 0
+        accepted_rate = round((accepted_apps / total_apps) * 100, 2) if total_apps else 0
+        rejected_rate = round((rejected_apps / total_apps) * 100, 2) if total_apps else 0
+        pending_rate = round((pending_apps / total_apps) * 100, 2) if total_apps else 0
 
         return JsonResponse({
             "weekly_accepted": list(weekly_accepted),
+            "weekly_rejected": list(weekly_rejected),
             "weekly_cancelled": list(weekly_cancelled),
+            "weekly_pending": list(weekly_pending),
+
             "faculty_stats": list(faculty_data),
             "college_stats": list(college_data),
 
@@ -836,24 +889,39 @@ def admin_full_report(request):
             "total_complaints": total_complaints,
 
             "total_applications": total_apps,
+
+            "pending_apps": pending_apps,
+            "total_accepted": accepted_apps,
+            "total_rejected": rejected_apps,
             "total_cancelled": cancelled_apps,
-            "cancel_rate": cancel_rate
+
+            "cancel_rate": cancel_rate,
+            "accepted_rate": accepted_rate,
+            "rejected_rate": rejected_rate,
+            "pending_rate": pending_rate,
         })
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)    
-@csrf_exempt
+        return JsonResponse({"error": str(e)}, status=500)
+     
 def admin_complaint_list(request):
     if request.method != "GET":
         return JsonResponse({"error": "GET only"}, status=405)
+
+    student_id = request.GET.get("student_id")  # 👈 ADD THIS
 
     data = JobApplication.objects.exclude(
         complaint__isnull=True
     ).exclude(complaint="").select_related("student", "job")
 
+    # 🔥 FILTER IF CLICKED FROM TABLE
+    if student_id:
+        data = data.filter(student__user__id=student_id)
+
     return JsonResponse([
         {
             "id": a.id,
+            "student_id": a.student.user.id,
             "student": a.student.nama_penuh,
             "job": a.job.job_type,
             "complaint": a.complaint,
@@ -861,8 +929,7 @@ def admin_complaint_list(request):
             "applied_at": a.applied_at
         }
         for a in data
-    ], safe=False)
-            
+    ], safe=False)          
 
 @csrf_exempt
 def admin_feedback_list(request):
@@ -1024,3 +1091,80 @@ def submit_feedback(request, app_id):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+    
+@csrf_exempt
+def admin_student_accepted_report(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "GET only"}, status=405)
+
+    students = StudentProfile.objects.select_related("user").annotate(
+        total_applications=Count("jobapplication"),
+        accepted_jobs=Count(
+            "jobapplication",
+            filter=Q(jobapplication__status="confirmed")
+        ),
+        rejected_jobs=Count(
+            "jobapplication",
+            filter=Q(jobapplication__status="rejected")
+        ),
+
+        # 🔥 NEW: complaints received from employers
+        total_complaints=Count(
+            "jobapplication",
+            filter=Q(jobapplication__complaint__isnull=False) & ~Q(jobapplication__complaint="")
+        )
+    )
+
+    data = [
+        {
+            "student_id": s.user.id,
+            "name": s.nama_penuh,
+            "email": s.user.email,
+            "faculty": s.fakulti,
+            "college": s.kolej,
+
+            "total_applications": s.total_applications,
+            "accepted_jobs": s.accepted_jobs,
+            "rejected_jobs": s.rejected_jobs,
+
+            # 🔥 NEW FIELD
+            "total_complaints": s.total_complaints,
+        }
+        for s in students
+    ]
+
+    return JsonResponse(data, safe=False)
+
+
+@csrf_exempt
+def update_employer_profile(request):
+    if request.method != "PUT":
+        return JsonResponse({"error": "PUT only"}, status=405)
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not logged in"}, status=401)
+
+    if request.user.role != "employer":
+        return JsonResponse({"error": "Not employer"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+
+        profile = EmployerProfile.objects.get(user=request.user)
+
+        # Update fields
+        profile.full_name = data.get("full_name", profile.full_name)
+        profile.company_name = data.get("company_name", profile.company_name)
+        profile.phone_number = data.get("phone_number", profile.phone_number)
+
+        request.user.email = data.get("email", request.user.email)
+
+        profile.save()
+        request.user.save()
+
+        return JsonResponse({
+            "message": "Profile updated successfully"
+        })
+
+    except EmployerProfile.DoesNotExist:
+        return JsonResponse({"error": "Profile not found"}, status=404)
