@@ -4,6 +4,7 @@ from .views import (
     admin_employer_report,
     admin_feedback_list,
     admin_full_report,
+    admin_student_accepted_report,
     admin_student_report,
     apply_job,
     cancel_application,
@@ -22,6 +23,7 @@ from .views import (
     get_students,
     get_employers,
     submit_feedback,
+    update_employer_profile,
     update_job,
 
     verify_employer,
@@ -34,6 +36,7 @@ from .views import (
 
         
 )
+from jobsystem import views
 
 urlpatterns = [
     path('student-register/', student_register, name='student_register'),
@@ -68,5 +71,7 @@ urlpatterns = [
     path("student/submit-feedback/<int:app_id>/",submit_feedback),
     path("admin/feedback-list/", admin_feedback_list),
     path("admin/complaint-list/",admin_complaint_list),
+    path("admin/student-accepted-report/", admin_student_accepted_report),
+    path("employer/update-employer-profile/", update_employer_profile),
 
 ]
