@@ -1,10 +1,16 @@
 from django.urls import path
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+from rest_framework_simplejwt.views import TokenObtainPairView
+
 from .views import (
     admin_complaint_list,
     admin_employer_report,
     admin_feedback_list,
     admin_full_report,
-    admin_student_accepted_report,
     admin_student_report,
     apply_job,
     cancel_application,
@@ -71,7 +77,10 @@ urlpatterns = [
     path("student/submit-feedback/<int:app_id>/",submit_feedback),
     path("admin/feedback-list/", admin_feedback_list),
     path("admin/complaint-list/",admin_complaint_list),
-    path("admin/student-accepted-report/", admin_student_accepted_report),
     path("employer/update-employer-profile/", update_employer_profile),
+     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
 
 ]
+
