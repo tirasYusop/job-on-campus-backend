@@ -11,7 +11,12 @@ from datetime import timedelta
 from django.utils import timezone
 from django.db.models.functions import Coalesce
 from django.db.models import Count, Q
-
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
@@ -65,10 +70,13 @@ def student_register(request):
         )
 
         # auto login
-        login(request, user)
+        # ✅ ADD JWT TOKEN
+        refresh = RefreshToken.for_user(user)
 
         return JsonResponse({
             "message": "Student registered & logged in",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
@@ -131,18 +139,22 @@ def employer_register(request):
             phone_number=data["phone_number"]
         )
 
-        login(request, user)
+        refresh = RefreshToken.for_user(user)
 
         return JsonResponse({
             "message": "Employer registered & logged in",
-            "user_id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "verified": user.verified,
-            "full_name": data["full_name"]
-        }, status=201)      
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
 
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "verified": user.verified,
+                "full_name": data["full_name"]
+            }
+        }, status=201)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
@@ -159,62 +171,63 @@ def login_view(request):
         password = data.get("password")
 
         if not login_id or not password:
-            return JsonResponse(
-                {"error": "Username / Email and password required"},
-                status=400
-            )
+            return JsonResponse({"error": "Missing credentials"}, status=400)
 
-        # 🔥 Find user (username OR email)
-        user_obj = User.objects.filter(
-            username=login_id
-        ).first() or User.objects.filter(
-            email=login_id
-        ).first()
+        # find user
+        user_obj = User.objects.filter(username=login_id).first() or \
+                   User.objects.filter(email=login_id).first()
 
         if not user_obj:
             return JsonResponse({"error": "Invalid credentials"}, status=400)
 
-        # 🔥 Authenticate properly
+        # authenticate
         user = authenticate(username=user_obj.username, password=password)
 
         if not user:
             return JsonResponse({"error": "Invalid credentials"}, status=400)
 
-        login(request, user)
+        # ✅ CREATE JWT TOKEN
+        refresh = RefreshToken.for_user(user)
 
-        # 🔥 FORCE admin rule
         role = "admin" if user.is_superuser else user.role
 
         return JsonResponse({
             "message": "Login successful",
-            "user_id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": role,
-            "verified": user.verified,
-            "is_superuser": user.is_superuser
-        })
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
 
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": role,
+                "verified": user.verified,
+            }
+        })
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-@csrf_exempt
+        return JsonResponse({"error": str(e)}, status=500)   
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_all_users(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     users = User.objects.all().values("id", "username", "role", "verified")
-    return JsonResponse(list(users), safe=False)
+    return Response(list(users))
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_students(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     students = StudentProfile.objects.select_related("user")
 
-    data = []
-    for s in students:
-        data.append({
+    data = [
+        {
             "id": s.user.id,
             "username": s.user.username,
             "nama_penuh": s.nama_penuh,
@@ -223,22 +236,25 @@ def get_students(request):
             "no_telefon": s.no_telefon,
             "fakulti": s.fakulti,
             "kolej": s.kolej,
-        })
+        }
+        for s in students
+    ]
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_employers(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     employers = EmployerProfile.objects.select_related("user").annotate(
-        total_jobs=Count("jobs") 
+        total_jobs=Count("jobs")
     )
 
-    data = []
-    for e in employers:
-        data.append({
+    data = [
+        {
             "id": e.user.id,
             "username": e.user.username,
             "full_name": e.full_name,
@@ -246,83 +262,98 @@ def get_employers(request):
             "phone_number": e.phone_number,
             "verified": e.user.verified,
             "email": e.user.email,
-            "total_jobs": e.total_jobs  
-        })
+            "total_jobs": e.total_jobs
+        }
+        for e in employers
+    ]
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def verify_employer(request, user_id):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
+
     try:
         user = User.objects.get(id=user_id, role="employer")
         user.verified = True
         user.save()
-        return JsonResponse({"message": "Employer verified successfully"})
+
+        return Response({"message": "Employer verified successfully"})
+
     except User.DoesNotExist:
-        return JsonResponse({"error": "Employer not found"}, status=404)
-    
-    
-@csrf_exempt
+        return Response({"error": "Employer not found"}, status=404)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def admin_stats(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
-    return JsonResponse({
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
+
+    return Response({
         "total_users": User.objects.count(),
         "total_students": StudentProfile.objects.count(),
         "total_employers": EmployerProfile.objects.count(),
         "verified_employers": User.objects.filter(role="employer", verified=True).count()
     })
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_unverified_employers(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
+
     employers = EmployerProfile.objects.select_related("user").filter(user__verified=False)
-    data = []
-    for e in employers:
-        data.append({
+
+    data = [
+        {
             "id": e.user.id,
             "username": e.user.username,
             "company_name": e.company_name,
             "phone_number": e.phone_number,
             "verified": e.user.verified
-        })
+        }
+        for e in employers
+    ]
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_verified_employers(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     employers = EmployerProfile.objects.select_related("user").filter(user__verified=True)
 
-    data = []
-    for e in employers:
-        data.append({
+    data = [
+        {
             "id": e.user.id,
             "username": e.user.username,
             "company_name": e.company_name,
             "phone_number": e.phone_number,
             "verified": e.user.verified
-        })
+        }
+        for e in employers
+    ]
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def employer_status(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
-    return JsonResponse({
+    return Response({
         "user_id": request.user.id,
         "verified": request.user.verified,
         "role": request.user.role
@@ -330,29 +361,21 @@ def employer_status(request):
 
 from django.contrib.auth import logout
 
-@csrf_exempt
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def logout_view(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
+    return Response({"message": "Logout successful. Please remove token on client."})
 
-    logout(request)
-
-    return JsonResponse({"message": "Logged out successfully"})
-
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def employer_jobs(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
         employer_profile = EmployerProfile.objects.get(user=request.user)
-
         jobs = Job.objects.filter(employer=employer_profile).order_by("-id")
 
         data = []
@@ -361,7 +384,7 @@ def employer_jobs(request):
             applications = JobApplication.objects.filter(job=job).order_by("-applied_at")
 
             data.append({
-                "id": job.id,   # ✅ IMPORTANT (consistent)
+                "id": job.id,
                 "job_type": job.job_type,
                 "business_type": job.business_type,
                 "phone": job.phone,
@@ -374,7 +397,6 @@ def employer_jobs(request):
                 "criteria": job.criteria,
                 "total_applicants": applications.count(),
                 "created_at": job.created_at.isoformat(),
-                #SEND ARRAY 
                 "applications": [
                     {
                         "id": app.id,
@@ -382,13 +404,12 @@ def employer_jobs(request):
                             "id": app.student.user.id,
                             "username": app.student.user.username,
                             "nama_penuh": app.student.nama_penuh,
-                            "email": app.student.user.email, 
+                            "email": app.student.user.email,
                             "no_matrik": app.student.no_matrik,
                             "no_telefon": app.student.no_telefon,
                             "fakulti": app.student.fakulti,
                             "kolej": app.student.kolej,
                         },
-
                         "status": app.status,
                         "applied_at": app.applied_at,
                         "complaint": app.complaint,
@@ -398,25 +419,21 @@ def employer_jobs(request):
                 ]
             })
 
-        return JsonResponse(data, safe=False)
+        return Response(data)
 
     except EmployerProfile.DoesNotExist:
-        return JsonResponse({"error": "Employer profile not found"}, status=404)
-    
+        return Response({"error": "Employer profile not found"}, status=404)
+  
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def post_job(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
-        data = json.loads(request.body)
+        data = request.data  # 🔥 CHANGE json.loads(request.body)
 
         employer_profile = EmployerProfile.objects.get(user=request.user)
 
@@ -434,22 +451,22 @@ def post_job(request):
             criteria=data.get("criteria"),
         )
 
-        return JsonResponse({
+        return Response({
             "message": "Job posted successfully",
             "job_id": job.id,
-            "created_at": job.created_at.isoformat()  # ✅ ADD THIS
+            "created_at": job.created_at.isoformat()
         }, status=201)
 
     except EmployerProfile.DoesNotExist:
-        return JsonResponse({"error": "Employer profile not found"}, status=404)
+        return Response({"error": "Employer profile not found"}, status=404)
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)  
+        return Response({"error": str(e)}, status=500)
 
-@csrf_exempt
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_all_jobs(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
 
     jobs = Job.objects.all().order_by("-id")
 
@@ -468,29 +485,23 @@ def get_all_jobs(request):
             "salary_estimate": job.salary_estimate,
             "num_workers": job.num_workers,
             "criteria": job.criteria,
-            "created_at": job.created_at.strftime("%Y-%m-%d %H:%M:%S")  # TEMP fallback (or use actual field if you have)
+            "created_at": job.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def apply_job(request, job_id):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "student":
-        return JsonResponse({"error": "Not student"}, status=403)
+        return Response({"error": "Not student"}, status=403)
 
     try:
         job = Job.objects.get(id=job_id)
 
-        # 🔥 NEW: BLOCK EXPIRED JOB
         if job.end_date < timezone.now().date():
-            return JsonResponse({
+            return Response({
                 "error": "This job has expired and cannot be applied"
             }, status=400)
 
@@ -512,12 +523,12 @@ def apply_job(request, job_id):
                 application.status = "pending"
                 application.save()
             else:
-                return JsonResponse({
+                return Response({
                     "message": "Already applied",
                     "status": application.status
                 }, status=400)
 
-        return JsonResponse({
+        return Response({
             "message": "Applied successfully",
             "job_id": job.id,
             "application_id": application.id,
@@ -525,18 +536,15 @@ def apply_job(request, job_id):
         })
 
     except Job.DoesNotExist:
-        return JsonResponse({"error": "Job not found"}, status=404)
+        return Response({"error": "Job not found"}, status=404)
 
-@csrf_exempt
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def employer_applications(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
         employer_profile = EmployerProfile.objects.get(user=request.user)
@@ -553,92 +561,74 @@ def employer_applications(request):
                 "job_type": job.job_type,
                 "location": job.location,
                 "total_applicants": applications.count(),
-                #lates notification (for badge)
                 "latest_application": (
                     {
                         "student_name": applications.first().student.nama_penuh,
                         "applied_at": applications.first().applied_at,
                     } if applications.exists() else None
                 ),
-                # list of all applications 
-                    "applications": [
-                        {
-                            "id": app.id,
-
-                            # FULL STUDENT INFO
-                            "student": {
-                                "id": app.student.user.id,
-                                "username": app.student.user.username,
-                                "nama_penuh": app.student.nama_penuh,
-                                "no_matrik": app.student.no_matrik,
-                                "no_telefon": app.student.no_telefon,
-                                "fakulti": app.student.fakulti,
-                                "kolej": app.student.kolej,
-                            },
-
-                            "status": app.status,
-                            "applied_at": app.applied_at,
-                        }
-                        for app in applications
-                    ]
+                "applications": [
+                    {
+                        "id": app.id,
+                        "student": {
+                            "id": app.student.user.id,
+                            "username": app.student.user.username,
+                            "nama_penuh": app.student.nama_penuh,
+                            "no_matrik": app.student.no_matrik,
+                            "no_telefon": app.student.no_telefon,
+                            "fakulti": app.student.fakulti,
+                            "kolej": app.student.kolej,
+                        },
+                        "status": app.status,
+                        "applied_at": app.applied_at,
+                    }
+                    for app in applications
+                ]
             })
 
-        return JsonResponse(data, safe=False)
+        return Response(data)
 
     except EmployerProfile.DoesNotExist:
-        return JsonResponse({"error": "Employer profile not found"}, status=404)
-    
+        return Response({"error": "Employer profile not found"}, status=404)
 
-
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def confirm_application(request, app_id):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     try:
-        data = json.loads(request.body or "{}")
+        data = request.data
         action = data.get("action")
 
         app = JobApplication.objects.get(id=app_id)
 
-        # only allow valid actions
         if action == "reject":
             app.status = "rejected"
         elif action == "confirm":
             app.status = "confirmed"
         else:
-            return JsonResponse({"error": "Invalid action"}, status=400)
+            return Response({"error": "Invalid action"}, status=400)
 
         app.save()
 
-        return JsonResponse({
+        return Response({
             "message": "success",
             "status": app.status,
             "app_id": app.id
         })
 
     except JobApplication.DoesNotExist:
-        return JsonResponse({"error": "Not found"}, status=404)
+        return Response({"error": "Not found"}, status=404)
+    
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def student_applications(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
 
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
+    if request.user.role != "student":
+        return Response({"error": "Not student"}, status=403)
 
     try:
-        # ALWAYS reload from DB to get latest role/status
-        user = User.objects.get(id=request.user.id)
-
-        if user.role != "student":
-            return JsonResponse({"error": "Not student"}, status=403)
-
-        student = StudentProfile.objects.get(user=user)
+        student = StudentProfile.objects.get(user=request.user)
 
         applications = JobApplication.objects.filter(
             student=student
@@ -658,67 +648,44 @@ def student_applications(request):
             for app in applications
         ]
 
-        return JsonResponse(data, safe=False)
-
-    except User.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
+        return Response(data)
 
     except StudentProfile.DoesNotExist:
-        return JsonResponse({"error": "Student profile not found"}, status=404)
-    
+        return Response({"error": "Student profile not found"}, status=404)
+       
 
-@csrf_exempt
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
 def update_job(request, job_id):
-    if request.method != "PUT":
-        return JsonResponse({"error": "PUT only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
         job = Job.objects.get(id=job_id)
 
-        # 🔒 Ensure only owner can edit
         if job.employer.user != request.user:
-            return JsonResponse({"error": "Unauthorized"}, status=403)
+            return Response({"error": "Unauthorized"}, status=403)
 
-        data = json.loads(request.body)
+        data = request.data
 
         today = timezone.now().date()
 
-        # 👉 Get new dates (or fallback to existing)
         start_date = data.get("start_date", job.start_date)
         end_date = data.get("end_date", job.end_date)
 
-        # 🔥 CONVERT string → date (IMPORTANT)
         from datetime import datetime
         if isinstance(start_date, str):
             start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
         if isinstance(end_date, str):
             end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
 
-        # =========================
-        # 🚫 VALIDATION RULES
-        # =========================
-
-        # ❌ Cannot set start date in the past
         if start_date < today:
-            return JsonResponse({
-                "error": "Start date cannot be in the past"
-            }, status=400)
+            return Response({"error": "Start date cannot be in the past"}, status=400)
 
-        # ❌ End date cannot be before start date
         if end_date < start_date:
-            return JsonResponse({
-                "error": "End date must be after start date"
-            }, status=400)
+            return Response({"error": "End date must be after start date"}, status=400)
 
-        # =========================
-        # ✅ UPDATE FIELDS
-        # =========================
         job.job_type = data.get("job_type", job.job_type)
         job.business_type = data.get("business_type", job.business_type)
         job.phone = data.get("phone", job.phone)
@@ -732,51 +699,42 @@ def update_job(request, job_id):
 
         job.save()
 
-        return JsonResponse({
+        return Response({
             "message": "Job updated successfully",
             "job_id": job.id
         })
 
     except Job.DoesNotExist:
-        return JsonResponse({"error": "Job not found"}, status=404)
-      
-@csrf_exempt
+        return Response({"error": "Job not found"}, status=404)
+       
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
 def delete_job(request, job_id):
-    if request.method != "DELETE":
-        return JsonResponse({"error": "DELETE only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
         job = Job.objects.get(id=job_id)
 
-        # 🔒 Only owner can delete
         if job.employer.user != request.user:
-            return JsonResponse({"error": "Unauthorized"}, status=403)
+            return Response({"error": "Unauthorized"}, status=403)
 
         job.delete()
 
-        return JsonResponse({
+        return Response({
             "message": "Job deleted successfully"
         })
 
     except Job.DoesNotExist:
-        return JsonResponse({"error": "Job not found"}, status=404)
-    
-@csrf_exempt
+        return Response({"error": "Job not found"}, status=404)
+       
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
 def cancel_application(request, job_id):
-    if request.method != "DELETE":
-        return JsonResponse({"error": "DELETE only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "student":
-        return JsonResponse({"error": "Not student"}, status=403)
+        return Response({"error": "Not student"}, status=403)
 
     try:
         student = StudentProfile.objects.get(user=request.user)
@@ -787,35 +745,37 @@ def cancel_application(request, job_id):
             status="pending"
         )
 
-        # 🔥 FIX: DO NOT DELETE → MARK AS CANCELLED
         app.status = "cancelled"
         app.save()
 
-        return JsonResponse({
+        return Response({
             "message": "Application cancelled successfully",
             "job_id": job_id,
             "status": app.status
         })
 
     except JobApplication.DoesNotExist:
-        return JsonResponse({
+        return Response({
             "error": "Application not found or already processed"
         }, status=404)
 
     except StudentProfile.DoesNotExist:
-        return JsonResponse({
+        return Response({
             "error": "Student profile not found"
         }, status=404)
+    
 
-@csrf_exempt
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def admin_full_report(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     try:
-        from django.utils import timezone
-
         one_week_ago = timezone.now() - timedelta(days=7)
+
         weekly_accepted = (
             JobApplication.objects
             .filter(status="confirmed", applied_at__gte=one_week_ago)
@@ -824,6 +784,7 @@ def admin_full_report(request):
             .annotate(total_accepted=Count("id"))
             .order_by("date")
         )
+
         weekly_rejected = (
             JobApplication.objects
             .filter(status="rejected", applied_at__gte=one_week_ago)
@@ -832,6 +793,7 @@ def admin_full_report(request):
             .annotate(total_rejected=Count("id"))
             .order_by("date")
         )
+
         weekly_cancelled = (
             JobApplication.objects
             .filter(status="cancelled", applied_at__gte=one_week_ago)
@@ -840,6 +802,7 @@ def admin_full_report(request):
             .annotate(total_cancelled=Count("id"))
             .order_by("date")
         )
+
         weekly_pending = (
             JobApplication.objects
             .filter(status="pending", applied_at__gte=one_week_ago)
@@ -848,27 +811,26 @@ def admin_full_report(request):
             .annotate(total_pending=Count("id"))
             .order_by("date")
         )
+
         faculty_data = StudentProfile.objects.values("fakulti").annotate(total=Count("id"))
         college_data = StudentProfile.objects.values("kolej").annotate(total=Count("id"))
-        total_feedback = JobApplication.objects.exclude(
-            feedback__isnull=True
-        ).exclude(feedback="").count()
 
-        total_complaints = JobApplication.objects.exclude(
-            complaint__isnull=True
-        ).exclude(complaint="").count()
+        total_feedback = JobApplication.objects.exclude(feedback__isnull=True).exclude(feedback="").count()
+        total_complaints = JobApplication.objects.exclude(complaint__isnull=True).exclude(complaint="").count()
+
         total_apps = JobApplication.objects.count()
 
         pending_apps = JobApplication.objects.filter(status="pending").count()
         accepted_apps = JobApplication.objects.filter(status="confirmed").count()
         rejected_apps = JobApplication.objects.filter(status="rejected").count()
         cancelled_apps = JobApplication.objects.filter(status="cancelled").count()
+
         cancel_rate = round((cancelled_apps / total_apps) * 100, 2) if total_apps else 0
         accepted_rate = round((accepted_apps / total_apps) * 100, 2) if total_apps else 0
         rejected_rate = round((rejected_apps / total_apps) * 100, 2) if total_apps else 0
         pending_rate = round((pending_apps / total_apps) * 100, 2) if total_apps else 0
 
-        return JsonResponse({
+        return Response({
             "weekly_accepted": list(weekly_accepted),
             "weekly_rejected": list(weekly_rejected),
             "weekly_cancelled": list(weekly_cancelled),
@@ -902,23 +864,25 @@ def admin_full_report(request):
         })
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-     
-def admin_complaint_list(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+        return Response({"error": str(e)}, status=500)   
 
-    student_id = request.GET.get("student_id")  # 👈 ADD THIS
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def admin_complaint_list(request):
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
+
+    student_id = request.GET.get("student_id")
 
     data = JobApplication.objects.exclude(
         complaint__isnull=True
     ).exclude(complaint="").select_related("student", "job")
 
-    # 🔥 FILTER IF CLICKED FROM TABLE
     if student_id:
         data = data.filter(student__user__id=student_id)
 
-    return JsonResponse([
+    return Response([
         {
             "id": a.id,
             "student_id": a.student.user.id,
@@ -929,18 +893,20 @@ def admin_complaint_list(request):
             "applied_at": a.applied_at
         }
         for a in data
-    ], safe=False)          
+    ])
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def admin_feedback_list(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     data = JobApplication.objects.exclude(
         feedback__isnull=True
     ).exclude(feedback="").select_related("student", "job")
 
-    return JsonResponse([
+    return Response([
         {
             "id": a.id,
             "student": a.student.nama_penuh,
@@ -950,12 +916,14 @@ def admin_feedback_list(request):
             "applied_at": a.applied_at
         }
         for a in data
-    ], safe=False)
+    ])
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def admin_student_report(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     students = StudentProfile.objects.select_related("user")
 
@@ -976,12 +944,14 @@ def admin_student_report(request):
             "rejected": rejected,
         })
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def admin_employer_report(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return Response({"error": "Not admin"}, status=403)
 
     employers = EmployerProfile.objects.select_related("user")
 
@@ -1004,155 +974,92 @@ def admin_employer_report(request):
             "accepted_applications": accepted,
         })
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def report_student(request, app_id):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
-    try:
-        # ✅ SAFE JSON PARSE
-        data = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
-
-    complaint = data.get("complaint")
+    complaint = request.data.get("complaint")
 
     if not complaint:
-        return JsonResponse({"error": "Complaint required"}, status=400)
+        return Response({"error": "Complaint required"}, status=400)
 
     try:
         app = JobApplication.objects.get(id=app_id)
 
-        # only allow reporting accepted students
         if app.status != "confirmed":
-            return JsonResponse(
+            return Response(
                 {"error": "Only accepted students can be reported"},
                 status=400
             )
 
-        # ✅ SAVE COMPLAINT
         app.complaint = complaint
         app.complaint_status = "reported"
         app.feedback_status = "not_submitted"
         app.save()
 
-        return JsonResponse({
+        return Response({
             "message": "Student reported successfully"
         })
 
     except JobApplication.DoesNotExist:
-        return JsonResponse({"error": "Not found"}, status=404)
+        return Response({"error": "Not found"}, status=404)
+    
 
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def submit_feedback(request, app_id):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "student":
-        return JsonResponse({"error": "Not student"}, status=403)
+        return Response({"error": "Not student"}, status=403)
+
+    feedback = request.data.get("feedback")
+
+    if not feedback:
+        return Response({"error": "Feedback required"}, status=400)
 
     try:
-        data = json.loads(request.body.decode("utf-8"))
-        feedback = data.get("feedback")
-
-        if not feedback:
-            return JsonResponse({"error": "Feedback required"}, status=400)
-
         app = JobApplication.objects.get(id=app_id)
 
-        # only allow feedback for confirmed jobs
         if app.status != "confirmed":
-            return JsonResponse({"error": "Only completed jobs can be reviewed"}, status=400)
+            return Response(
+                {"error": "Only completed jobs can be reviewed"},
+                status=400
+            )
 
-        # save feedback
         app.feedback = feedback
         app.feedback_status = "submitted"
         app.save()
 
-        return JsonResponse({
+        return Response({
             "message": "Feedback submitted successfully",
             "status": app.feedback_status
         })
 
     except JobApplication.DoesNotExist:
-        return JsonResponse({"error": "Application not found"}, status=404)
+        return Response({"error": "Application not found"}, status=404)
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
-@csrf_exempt
-def admin_student_accepted_report(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "GET only"}, status=405)
+        return Response({"error": str(e)}, status=500)
+      
 
-    students = StudentProfile.objects.select_related("user").annotate(
-        total_applications=Count("jobapplication"),
-        accepted_jobs=Count(
-            "jobapplication",
-            filter=Q(jobapplication__status="confirmed")
-        ),
-        rejected_jobs=Count(
-            "jobapplication",
-            filter=Q(jobapplication__status="rejected")
-        ),
-
-        # 🔥 NEW: complaints received from employers
-        total_complaints=Count(
-            "jobapplication",
-            filter=Q(jobapplication__complaint__isnull=False) & ~Q(jobapplication__complaint="")
-        )
-    )
-
-    data = [
-        {
-            "student_id": s.user.id,
-            "name": s.nama_penuh,
-            "email": s.user.email,
-            "faculty": s.fakulti,
-            "college": s.kolej,
-
-            "total_applications": s.total_applications,
-            "accepted_jobs": s.accepted_jobs,
-            "rejected_jobs": s.rejected_jobs,
-
-            # 🔥 NEW FIELD
-            "total_complaints": s.total_complaints,
-        }
-        for s in students
-    ]
-
-    return JsonResponse(data, safe=False)
-
-
-@csrf_exempt
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
 def update_employer_profile(request):
-    if request.method != "PUT":
-        return JsonResponse({"error": "PUT only"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not logged in"}, status=401)
 
     if request.user.role != "employer":
-        return JsonResponse({"error": "Not employer"}, status=403)
+        return Response({"error": "Not employer"}, status=403)
 
     try:
-        data = json.loads(request.body)
+        data = request.data
 
         profile = EmployerProfile.objects.get(user=request.user)
 
-        # Update fields
         profile.full_name = data.get("full_name", profile.full_name)
         profile.company_name = data.get("company_name", profile.company_name)
         profile.phone_number = data.get("phone_number", profile.phone_number)
@@ -1162,9 +1069,7 @@ def update_employer_profile(request):
         profile.save()
         request.user.save()
 
-        return JsonResponse({
-            "message": "Profile updated successfully"
-        })
+        return Response({"message": "Profile updated successfully"})
 
     except EmployerProfile.DoesNotExist:
-        return JsonResponse({"error": "Profile not found"}, status=404)
+        return Response({"error": "Profile not found"}, status=404)
