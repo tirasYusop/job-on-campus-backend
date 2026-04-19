@@ -16,6 +16,7 @@ from .views import (
     apply_job,
     cancel_application,
     delete_job,
+    employer_profile,
     get_all_jobs,
     get_unverified_employers,
     get_verified_employers,
@@ -46,6 +47,7 @@ from .views import (
 from jobsystem import views
 
 urlpatterns = [
+    path("employer/profile/", employer_profile),
     path('student-register/', student_register, name='student_register'),
     path('employer-register/', employer_register, name='employer_register'),
     path('login/', login_view, name='login'),
