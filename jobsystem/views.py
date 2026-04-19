@@ -14,12 +14,10 @@ from django.db.models import Count, Q
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
+from .models import StudentProfile
 
 # STUDENT REGISTER
 @csrf_exempt
@@ -1073,3 +1071,51 @@ def update_employer_profile(request):
 
     except EmployerProfile.DoesNotExist:
         return Response({"error": "Profile not found"}, status=404)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def admin_student_accepted_report(request):
+
+    # 🔒 ADMIN ONLY ACCESS CONTROL
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+
+    if request.user.role != "admin" and not request.user.is_superuser:
+        return JsonResponse({"error": "Admin only access"}, status=403)
+
+    # 📊 QUERY STUDENT DATA WITH STATS
+    students = StudentProfile.objects.select_related("user").annotate(
+        total_applications=Count("jobapplication"),
+        accepted_jobs=Count(
+            "jobapplication",
+            filter=Q(jobapplication__status="confirmed")
+        ),
+        rejected_jobs=Count(
+            "jobapplication",
+            filter=Q(jobapplication__status="rejected")
+        ),
+        total_complaints=Count(
+            "jobapplication",
+            filter=Q(jobapplication__complaint__isnull=False) &
+                   ~Q(jobapplication__complaint="")
+        )
+    )
+
+    # 📦 FORMAT RESPONSE
+    data = [
+        {
+            "student_id": s.user.id,
+            "name": s.nama_penuh,
+            "email": s.user.email,
+            "faculty": s.fakulti,
+            "college": s.kolej,
+            "total_applications": s.total_applications,
+            "accepted_jobs": s.accepted_jobs,
+            "rejected_jobs": s.rejected_jobs,
+            "total_complaints": s.total_complaints,
+        }
+        for s in students
+    ]
+
+    return JsonResponse(data, safe=False)
