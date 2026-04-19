@@ -85,6 +85,29 @@ def student_register(request):
         return JsonResponse({"error": str(e)}, status=500)
     
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def employer_profile(request):
+
+    if request.user.role != "employer":
+        return Response({"error": "Not employer"}, status=403)
+
+    try:
+        profile = EmployerProfile.objects.get(user=request.user)
+
+        return Response({
+            "id": request.user.id,
+            "username": request.user.username,
+            "email": request.user.email,
+            "full_name": profile.full_name,
+            "company_name": profile.company_name,
+            "phone_number": profile.phone_number,
+            "verified": request.user.verified,
+        })
+
+    except EmployerProfile.DoesNotExist:
+        return Response({"error": "Profile not found"}, status=404)
+
 # EMPLOYER REGISTER
 @csrf_exempt
 def employer_register(request):
