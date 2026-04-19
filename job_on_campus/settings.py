@@ -30,6 +30,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
+    "192.168.0.16",
     "job-on-campus-backend.onrender.com"]
 AUTH_USER_MODEL = 'jobsystem.User'
 CSRF_COOKIE_HTTPONLY = False
@@ -57,6 +58,17 @@ INSTALLED_APPS = [
     'channels',
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -73,6 +85,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'job_on_campus.urls'
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
+    "http://192.168.0.16:3000",
     "http://localhost:3000",
     "https://job-on-campus-frontend-1.vercel.app",
 ]
@@ -84,15 +97,16 @@ CORS_ALLOW_HEADERS = [
 # ======================
 CSRF_TRUSTED_ORIGINS = [
     "https://job-on-campus-frontend-1.vercel.app",
+    "https://job-on-campus-backend.onrender.com",
 ]
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 SESSION_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SAMESITE = "None"
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
-
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
 
 TEMPLATES = [
     {
@@ -125,24 +139,25 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 # 🔵 LOCAL OFFLINE DATABASE (SQLite3)
-
-"""
+'''
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-"""
+'''
 
 # 🟢 PRODUCTION DATABASE (Render / PostgreSQL)
 # Uncomment this when deploying live
+# '''"""
 
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get("DATABASE_URL")
     )
 }
+
 
 
 # Password validation
