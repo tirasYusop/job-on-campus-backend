@@ -87,6 +87,60 @@ def student_register(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def student_profile(request):
+
+    if request.user.role != "student":
+        return Response({"error": "Not student"}, status=403)
+
+    try:
+        profile = StudentProfile.objects.get(user=request.user)
+
+        return Response({
+            "id": request.user.id,
+            "username": request.user.username,
+            "email": request.user.email,
+            "nama_penuh": profile.nama_penuh,
+            "no_matrik": profile.no_matrik,
+            "no_telefon": profile.no_telefon,
+            "fakulti": profile.fakulti,
+            "kolej": profile.kolej,
+            "total_applications": JobApplication.objects.filter(student=profile).count()
+        })
+
+    except StudentProfile.DoesNotExist:
+        return Response({"error": "Profile not found"}, status=404)
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def update_student_profile(request):
+
+    if request.user.role != "student":
+        return Response({"error": "Not student"}, status=403)
+
+    try:
+        profile = StudentProfile.objects.get(user=request.user)
+        data = request.data
+
+        profile.nama_penuh = data.get("nama_penuh", profile.nama_penuh)
+        profile.no_matrik = data.get("no_matrik", profile.no_matrik)
+        profile.no_telefon = data.get("no_telefon", profile.no_telefon)
+        profile.fakulti = data.get("fakulti", profile.fakulti)
+        profile.kolej = data.get("kolej", profile.kolej)
+
+        request.user.email = data.get("email", request.user.email)
+
+        profile.save()
+        request.user.save()
+
+        return Response({"message": "Student profile updated successfully"})
+
+    except StudentProfile.DoesNotExist:
+        return Response({"error": "Profile not found"}, status=404)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def employer_profile(request):
 
     if request.user.role != "employer":
@@ -652,7 +706,7 @@ def update_job(request, job_id):
         job.end_date = end_date
         job.work_time = data.get("work_time", job.work_time)
         job.salary_estimate = data.get("salary_estimate", job.salary_estimate)
-        job.num_workers = int(data.get("num_workers", job.num_workers))
+        job.num_workers =(data.get("num_workers", job.num_workers))
         job.criteria = data.get("criteria", job.criteria)
 
         job.save()
