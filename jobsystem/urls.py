@@ -3,9 +3,6 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-
-from rest_framework_simplejwt.views import TokenObtainPairView
-
 from .views import (
     admin_complaint_list,
     admin_employer_report,
@@ -18,8 +15,6 @@ from .views import (
     delete_job,
     employer_profile,
     get_all_jobs,
-    get_unverified_employers,
-    get_verified_employers,
     logout_view,
     report_student,
     student_applications,
@@ -33,8 +28,6 @@ from .views import (
     submit_feedback,
     update_employer_profile,
     update_job,
-
-    verify_employer,
     admin_stats,
         employer_status,
         employer_jobs,
@@ -56,8 +49,6 @@ urlpatterns = [
     path('admin/employers/', get_employers, name='get_employers'),
     path('admin/verify-employer/<int:user_id>/', verify_employer, name='verify_employer'),
     path('admin/stats/', admin_stats, name='admin_stats'),
-    path("admin/employers/unverified/", get_unverified_employers, name='get_unverified_employers'),
-    path("admin/employers/verified/", get_verified_employers, name='get_verified_employers'),
     path('employer-status/', employer_status, name='employer_status'),
     path("logout/", logout_view, name="logout"),
     path("employer-jobs/", employer_jobs, name="employer_jobs"),  
@@ -67,9 +58,6 @@ urlpatterns = [
     path("employer-applications/", employer_applications, name="employer_applications"),
     path("confirm-application/<int:app_id>/",confirm_application, name="confirm_application"),
     path("student-applications/", student_applications, name="student_applications"),
-    path("admin/employers/unverified/", get_unverified_employers, name='get_unverified_employers'),
-    path("admin/employers/verified/", get_verified_employers, name='get_verified_employers'),   
-    path('admin/verify-employer/<int:user_id>/', verify_employer, name='verify_employer'),  
     path("employer/job/delete-job/<int:job_id>/", delete_job, name="delete_job"),
     path("employer/job/update-job/<int:job_id>/", update_job, name="update_job"),
     path("cancel-application/<int:job_id>/",cancel_application,name="cancel_application"),
