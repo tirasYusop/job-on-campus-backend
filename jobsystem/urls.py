@@ -47,7 +47,6 @@ urlpatterns = [
     path('admin/users/', get_all_users, name='get_all_users'),
     path('admin/students/', get_students, name='get_students'),
     path('admin/employers/', get_employers, name='get_employers'),
-    path('admin/verify-employer/<int:user_id>/', verify_employer, name='verify_employer'),
     path('admin/stats/', admin_stats, name='admin_stats'),
     path('employer-status/', employer_status, name='employer_status'),
     path("logout/", logout_view, name="logout"),
