@@ -150,7 +150,7 @@ def employer_register(request):
             password=data["password"],
             email=email,
             role="employer",
-            verified=False
+            verified=True
         )
 
         EmployerProfile.objects.create(
@@ -281,7 +281,7 @@ def get_employers(request):
             "full_name": e.full_name,
             "company_name": e.company_name,
             "phone_number": e.phone_number,
-            "verified": e.user.verified,
+           # "verified": e.user.verified,
             "email": e.user.email,
             "total_jobs": e.total_jobs
         }
@@ -289,24 +289,6 @@ def get_employers(request):
     ]
 
     return Response(data)
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def verify_employer(request, user_id):
-
-    if request.user.role != "admin" and not request.user.is_superuser:
-        return Response({"error": "Not admin"}, status=403)
-
-    try:
-        user = User.objects.get(id=user_id, role="employer")
-        user.verified = True
-        user.save()
-
-        return Response({"message": "Employer verified successfully"})
-
-    except User.DoesNotExist:
-        return Response({"error": "Employer not found"}, status=404)
 
 
 @api_view(["GET"])
@@ -320,52 +302,8 @@ def admin_stats(request):
         "total_users": User.objects.count(),
         "total_students": StudentProfile.objects.count(),
         "total_employers": EmployerProfile.objects.count(),
-        "verified_employers": User.objects.filter(role="employer", verified=True).count()
+       # "verified_employers": User.objects.filter(role="employer", verified=True).count()
     })
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_unverified_employers(request):
-
-    if request.user.role != "admin" and not request.user.is_superuser:
-        return Response({"error": "Not admin"}, status=403)
-
-    employers = EmployerProfile.objects.select_related("user").filter(user__verified=False)
-
-    data = [
-        {
-            "id": e.user.id,
-            "username": e.user.username,
-            "company_name": e.company_name,
-            "phone_number": e.phone_number,
-            "verified": e.user.verified
-        }
-        for e in employers
-    ]
-
-    return Response(data)
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_verified_employers(request):
-
-    if request.user.role != "admin" and not request.user.is_superuser:
-        return Response({"error": "Not admin"}, status=403)
-
-    employers = EmployerProfile.objects.select_related("user").filter(user__verified=True)
-
-    data = [
-        {
-            "id": e.user.id,
-            "username": e.user.username,
-            "company_name": e.company_name,
-            "phone_number": e.phone_number,
-            "verified": e.user.verified
-        }
-        for e in employers
-    ]
-
-    return Response(data)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -376,7 +314,6 @@ def employer_status(request):
 
     return Response({
         "user_id": request.user.id,
-        "verified": request.user.verified,
         "role": request.user.role
     })
 
@@ -989,7 +926,7 @@ def admin_employer_report(request):
         data.append({
             "employer_id": e.user.id,
             "company": e.company_name,
-            "verified": e.user.verified,
+         #   "verified": e.user.verified,
             "total_jobs": total_jobs,
             "total_applications": total_apps,
             "accepted_applications": accepted,
