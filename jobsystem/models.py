@@ -64,7 +64,7 @@ class Job(models.Model):
     end_date = models.DateField()
     work_time = models.CharField(max_length=50)
     salary_estimate = models.CharField(max_length=50)
-    num_workers = models.IntegerField()
+    num_workers = models.CharField(max_length=50)
     criteria = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
