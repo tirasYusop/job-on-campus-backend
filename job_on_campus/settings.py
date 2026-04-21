@@ -30,7 +30,6 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "192.168.0.16",
     "job-on-campus-backend.onrender.com"]
 AUTH_USER_MODEL = 'jobsystem.User'
 CSRF_COOKIE_HTTPONLY = False
@@ -87,7 +86,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.16:3000",
     "http://localhost:3000",
-    "https://job-on-campus-frontend-1.vercel.app",
+    "https://job-on-campus-ums.vercel.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -96,7 +95,7 @@ CORS_ALLOW_HEADERS = [
 ]
 # ======================
 CSRF_TRUSTED_ORIGINS = [
-    "https://job-on-campus-frontend-1.vercel.app",
+    "https://job-on-campus-ums.vercel.app",
     "https://job-on-campus-backend.onrender.com",
 ]
 
