@@ -73,7 +73,7 @@ urlpatterns = [
     path("employer/update-employer-profile/", update_employer_profile),
     path("student/student-profile",student_profile),
     path("student/update-student-profile",update_student_profile),
-     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
 
