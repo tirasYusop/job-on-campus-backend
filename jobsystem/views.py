@@ -463,7 +463,7 @@ def post_job(request):
             end_date=data.get("end_date"),
             work_time=data.get("work_time"),
             salary_estimate=data.get("salary_estimate"),
-            num_workers=(data.get("num_workers", 0)),
+            num_workers=data.get("num_workers"),
             criteria=data.get("criteria"),
         )
 
