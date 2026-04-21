@@ -710,7 +710,7 @@ def update_job(request, job_id):
         job.end_date = end_date
         job.work_time = data.get("work_time", job.work_time)
         job.salary_estimate = data.get("salary_estimate", job.salary_estimate)
-        job.num_workers =(data.get("num_workers", job.num_workers))
+        job.num_workers = data.get("num_workers", job.num_workers)
         job.criteria = data.get("criteria", job.criteria)
 
         job.save()
