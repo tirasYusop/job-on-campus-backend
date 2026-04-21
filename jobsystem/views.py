@@ -29,10 +29,14 @@ def student_register(request):
         data = json.loads(request.body)
 
         required_fields = [
-            "username", "password",
+            "username", 
+            "password",
             "email",
-            "nama_penuh", "no_matrik",
-            "no_telefon", "fakulti", "kolej"
+            "nama_penuh",
+            "no_matrik",
+            "no_telefon", 
+            "fakulti", 
+            "kolej"
         ]
 
         missing = [f for f in required_fields if not data.get(f)]
